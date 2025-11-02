@@ -20,6 +20,10 @@ app.use(express.json());
 const uploadsDir = join(__dirname, '..', 'public', 'uploads');
 app.use('/uploads', express.static(uploadsDir));
 
+// Serve static files from dist folder (production build)
+const distPath = join(__dirname, '..', 'dist');
+app.use(express.static(distPath));
+
 // Configure multer for file uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -454,6 +458,15 @@ app.get('/api/files/:id/download', (req, res) => {
     console.error('Error downloading file:', error);
     res.status(500).json({ error: 'Failed to download file' });
   }
+});
+
+// Catch-all handler: send back React's index.html file for client-side routing
+app.get('*', (req, res) => {
+  // Don't interfere with API routes
+  if (req.path.startsWith('/api/')) {
+    return res.status(404).json({ error: 'API route not found' });
+  }
+  res.sendFile(join(distPath, 'index.html'));
 });
 
 app.listen(PORT, () => {
