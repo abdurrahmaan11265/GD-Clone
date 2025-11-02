@@ -89,7 +89,7 @@ function Home() {
           onViewModeChange={handleViewModeChange}
         />
         <MainContent 
-          parentFolderId={viewMode === 'starred' ? null : currentFolderId}
+          parentFolderId={viewMode === 'starred' || viewMode === 'trash' || viewMode === 'shared' ? null : currentFolderId}
           onFolderClick={handleFolderClick}
           refreshTrigger={refreshTrigger}
           folderStack={folderStack}
@@ -97,6 +97,7 @@ function Home() {
           currentFolderName={currentFolderName}
           onNavigateToFolder={handleNavigateToFolder}
           showStarred={viewMode === 'starred'}
+          viewMode={viewMode}
         />
       </div>
     </div>

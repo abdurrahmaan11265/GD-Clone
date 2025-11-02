@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import FileItem from './FileItem';
 import { fetchFiles, deleteFile, toggleStar, downloadFile } from '../utils/api';
 
-const MainContent = ({ parentFolderId, onFolderClick, refreshTrigger, folderStack, currentFolderId, currentFolderName, onNavigateToFolder, showStarred = false }) => {
+const MainContent = ({ parentFolderId, onFolderClick, refreshTrigger, folderStack, currentFolderId, currentFolderName, onNavigateToFolder, showStarred = false, viewMode: currentView = 'my-drive' }) => {
   // Load view mode from localStorage, default to 'grid'
   const [viewMode, setViewMode] = useState(() => {
     const savedViewMode = localStorage.getItem('drive-view-mode');
@@ -139,6 +139,57 @@ const MainContent = ({ parentFolderId, onFolderClick, refreshTrigger, folderStac
       type: file.type,
       modified: file.modified
     }));
+
+  const renderEmptyState = () => {
+    if (currentView === 'trash') {
+      return (
+        <div className="flex flex-col items-center justify-center py-16">
+          <svg className="w-24 h-24 text-gray-300 mb-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1">
+            <path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14zM10 11v6M14 11v6" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+          <p className="text-lg font-medium text-gray-900 mb-2">No trash files</p>
+          <p className="text-sm text-gray-500">Items you delete will appear here</p>
+        </div>
+      );
+    }
+    
+    if (currentView === 'shared') {
+      return (
+        <div className="flex flex-col items-center justify-center py-16">
+          <svg className="w-24 h-24 text-gray-300 mb-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1">
+            <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75M13 7a4 4 0 11-8 0 4 4 0 018 0z" strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M16 21v-2a4 4 0 012-3.87M16 3.13a4 4 0 013 3.87M23 11v2a4 4 0 01-2 3.87" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+          <p className="text-lg font-medium text-gray-900 mb-2">No shared files</p>
+          <p className="text-sm text-gray-500">Files shared with you will appear here</p>
+        </div>
+      );
+    }
+
+    if (showStarred) {
+      return (
+        <div className="flex flex-col items-center justify-center py-16">
+          <svg className="w-24 h-24 text-gray-300 mb-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1">
+            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+          <p className="text-lg font-medium text-gray-900 mb-2">No starred files</p>
+          <p className="text-sm text-gray-500">Star files to see them here</p>
+        </div>
+      );
+    }
+
+    // Default empty state for My Drive
+    return (
+      <div className="flex flex-col items-center justify-center py-16">
+        <svg className="w-24 h-24 text-gray-300 mb-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1">
+          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" strokeLinecap="round" strokeLinejoin="round"/>
+          <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+        <p className="text-lg font-medium text-gray-900 mb-2">No files yet</p>
+        <p className="text-sm text-gray-500">Upload a file or create a folder to get started</p>
+      </div>
+    );
+  };
 
   const toggleFileSelection = (fileId) => {
     setSelectedFiles(prev =>
@@ -316,10 +367,12 @@ const MainContent = ({ parentFolderId, onFolderClick, refreshTrigger, folderStac
           </section>
         )}
 
-        {/* My Drive / Starred Section */}
+        {/* My Drive / Starred / Trash / Shared Section */}
         <section>
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-medium text-gray-700">{showStarred ? 'Starred' : 'My Drive'}</h2>
+            <h2 className="text-sm font-medium text-gray-700">
+              {showStarred ? 'Starred' : currentView === 'trash' ? 'Trash' : currentView === 'shared' ? 'Shared with me' : 'My Drive'}
+            </h2>
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setViewMode('list')}
@@ -363,8 +416,8 @@ const MainContent = ({ parentFolderId, onFolderClick, refreshTrigger, folderStac
                 <tbody>
                   {files.length === 0 ? (
                     <tr>
-                      <td colSpan="5" className="px-4 py-8 text-center text-gray-500">
-                        No files yet. Upload a file or create a folder to get started.
+                      <td colSpan="5" className="px-4 py-16">
+                        {renderEmptyState()}
                       </td>
                     </tr>
                   ) : (
@@ -387,8 +440,8 @@ const MainContent = ({ parentFolderId, onFolderClick, refreshTrigger, folderStac
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
               {files.length === 0 ? (
-                <div className="col-span-full text-center py-12 text-gray-500">
-                  No files yet. Upload a file or create a folder to get started.
+                <div className="col-span-full">
+                  {renderEmptyState()}
                 </div>
               ) : (
                 files.map((file) => (
