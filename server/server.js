@@ -113,39 +113,65 @@ app.get('/api/files', (req, res) => {
   try {
     const parentFolderId = req.query.parentFolderId ? parseInt(req.query.parentFolderId) : null;
     const starred = req.query.starred === 'true';
+    const viewMode = req.query.viewMode || 'my-drive';
     
-    console.log('GET /api/files - Query params:', { parentFolderId, starred: req.query.starred, starredBoolean: starred });
+    console.log('GET /api/files - Query params:', { parentFolderId, starred: req.query.starred, starredBoolean: starred, viewMode });
     
-    // Read database directly to get all files for starred filter
+    // Read database directly to get all files
+    const data = JSON.parse(fs.readFileSync(join(__dirname, '..', 'database.json'), 'utf8'));
+    let allFiles = data.files || [];
+    
+    // Filter files based on viewMode
     let files;
-    if (starred) {
+    
+    // Helper function to check if file is deleted (handles undefined/null values)
+    const isDeleted = (file) => file.deleted === true || file.deleted === 1;
+    
+    // Helper function to check if file is shared (handles undefined/null values)
+    const isShared = (file) => file.shared === true || file.shared === 1;
+    
+    if (viewMode === 'trash') {
+      // Show only files that are deleted (in trash)
+      files = allFiles.filter(file => isDeleted(file));
+      console.log(`Trash filter: Found ${files.length} deleted files out of ${allFiles.length} total files`);
+    } else if (viewMode === 'shared') {
+      // Show only files that are shared and not deleted
+      files = allFiles.filter(file => isShared(file) && !isDeleted(file));
+      console.log(`Shared filter: Found ${files.length} shared files out of ${allFiles.length} total files`);
+    } else if (viewMode === 'recent') {
+      // Show all files, sorted by modified date (most recent first)
+      // Filter out deleted files (undefined deleted means not deleted)
+      files = allFiles.filter(file => !isDeleted(file));
+      // Sort by modified date (newest first)
+      files = files.sort((a, b) => new Date(b.modified_at) - new Date(a.modified_at));
+      // Limit to most recent 50 files
+      files = files.slice(0, 50);
+      console.log(`Recent filter: Found ${files.length} recent files`);
+    } else if (starred) {
       // For starred, we need all files regardless of parent
-      const data = JSON.parse(fs.readFileSync(join(__dirname, '..', 'database.json'), 'utf8'));
-      const allFiles = data.files || [];
-      console.log(`Total files in database: ${allFiles.length}`);
-      console.log('Sample file starred values:', allFiles.slice(0, 3).map(f => ({ id: f.id, name: f.name, starred: f.starred, starredType: typeof f.starred })));
-      
       // Filter only starred files (starred === 1 or starred === true)
       files = allFiles.filter(file => {
         // Handle both number (1) and boolean (true) values
         const isStarred = file.starred === 1 || file.starred === true || file.starred === '1';
-        if (!isStarred) {
-          console.log(`Filtered out: ${file.name} (starred=${file.starred}, type=${typeof file.starred})`);
-        }
-        return isStarred;
+        // Also filter out deleted files
+        return isStarred && !isDeleted(file);
       });
-      
       console.log(`Starred filter: Found ${files.length} starred files out of ${allFiles.length} total files`);
     } else {
+      // My Drive: filter by parentFolderId and exclude deleted files
       files = db.getAll(parentFolderId);
+      files = files.filter(file => !isDeleted(file));
     }
 
     // Sort: folders first, then by modified date (newest first)
-    files = files.sort((a, b) => {
-      if (a.type === 'folder' && b.type !== 'folder') return -1;
-      if (a.type !== 'folder' && b.type === 'folder') return 1;
-      return new Date(b.modified_at) - new Date(a.modified_at);
-    });
+    // (Recent is already sorted, so skip sorting for recent)
+    if (viewMode !== 'recent') {
+      files = files.sort((a, b) => {
+        if (a.type === 'folder' && b.type !== 'folder') return -1;
+        if (a.type !== 'folder' && b.type === 'folder') return 1;
+        return new Date(b.modified_at) - new Date(a.modified_at);
+      });
+    }
 
     const formattedFiles = files.map(file => ({
       id: file.id,
@@ -196,6 +222,8 @@ app.post('/api/files/upload', upload.single('file'), (req, res) => {
       path: filePath,
       parent_folder_id: parentFolderId,
       starred: 0,
+      deleted: 0,
+      shared: 0,
       owner: 'me'
     });
 
@@ -253,6 +281,8 @@ app.post('/api/folders', (req, res) => {
       path: folderPath,
       parent_folder_id: parsedParentId,
       starred: 0,
+      deleted: 0,
+      shared: 0,
       owner: 'me'
     });
 
@@ -271,7 +301,7 @@ app.post('/api/folders', (req, res) => {
   }
 });
 
-// DELETE /api/files/:id - Delete a file or folder
+// DELETE /api/files/:id - Delete a file or folder (soft delete - move to trash)
 app.delete('/api/files/:id', (req, res) => {
   try {
     const fileId = parseInt(req.params.id);
@@ -281,7 +311,11 @@ app.delete('/api/files/:id', (req, res) => {
       return res.status(404).json({ error: 'File not found' });
     }
 
-    // If it's a folder, delete all contents recursively
+    // Soft delete: Mark file as deleted instead of permanently deleting
+    db.update(fileId, { deleted: 1 });
+    console.log(`Moved ${file.type} ${file.name} (ID: ${fileId}) to trash`);
+
+    // If it's a folder, also mark all children as deleted recursively
     if (file.type === 'folder') {
       const findAllChildren = (parentId) => {
         const children = db.getAll(parentId);
@@ -295,73 +329,15 @@ app.delete('/api/files/:id', (req, res) => {
       };
 
       const children = findAllChildren(fileId);
-      console.log(`Deleting folder ${file.name} (ID: ${fileId}) with ${children.length} children`);
+      console.log(`Moving folder ${file.name} (ID: ${fileId}) with ${children.length} children to trash`);
       
-      // Delete all children first (files and subfolders)
+      // Mark all children as deleted
       children.forEach(child => {
-        // Files are stored in public/uploads, so include 'public' in the path
-        const fullPath = join(__dirname, '..', 'public', child.path);
-        console.log(`Deleting child: ${child.name} at path: ${fullPath}`);
-        
-        try {
-          if (fs.existsSync(fullPath)) {
-            if (child.type === 'folder') {
-              fs.rmSync(fullPath, { recursive: true, force: true });
-              console.log(`Deleted folder: ${fullPath}`);
-            } else {
-              fs.unlinkSync(fullPath);
-              console.log(`Deleted file: ${fullPath}`);
-            }
-          } else {
-            console.warn(`Path does not exist (may have been deleted already): ${fullPath}`);
-          }
-        } catch (err) {
-          console.error(`Error deleting child ${child.name} at ${fullPath}:`, err);
-          // Continue deleting other children even if one fails
-        }
-        
-        // Delete from database
-        db.delete(child.id);
+        db.update(child.id, { deleted: 1 });
       });
-      
-      // Delete folder directory itself - files are stored in public/uploads
-      const folderPath = join(__dirname, '..', 'public', file.path);
-      console.log(`Deleting main folder at path: ${folderPath}`);
-      
-      try {
-        if (fs.existsSync(folderPath)) {
-          fs.rmSync(folderPath, { recursive: true, force: true });
-          console.log(`Successfully deleted folder: ${folderPath}`);
-        } else {
-          console.warn(`Folder path does not exist (may have been deleted already): ${folderPath}`);
-        }
-      } catch (err) {
-        console.error(`Error deleting folder at ${folderPath}:`, err);
-        throw err; // Re-throw if main folder deletion fails
-      }
-    } else {
-      // Delete file - files are stored in public/uploads
-      const filePath = join(__dirname, '..', 'public', file.path);
-      console.log(`Deleting file: ${file.name} at path: ${filePath}`);
-      
-      try {
-        if (fs.existsSync(filePath)) {
-          fs.unlinkSync(filePath);
-          console.log(`Successfully deleted file: ${filePath}`);
-        } else {
-          console.warn(`File path does not exist (may have been deleted already): ${filePath}`);
-        }
-      } catch (err) {
-        console.error(`Error deleting file at ${filePath}:`, err);
-        throw err; // Re-throw if file deletion fails
-      }
     }
 
-    // Delete from database
-    db.delete(fileId);
-    console.log(`Deleted ${file.type} ${file.name} (ID: ${fileId}) from database`);
-
-    res.json({ message: 'File deleted successfully' });
+    res.json({ message: 'File moved to trash successfully' });
   } catch (error) {
     console.error('Error deleting file:', error);
     res.status(500).json({ error: 'Failed to delete file: ' + error.message });

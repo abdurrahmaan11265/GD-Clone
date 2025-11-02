@@ -89,7 +89,7 @@ function Home() {
           onViewModeChange={handleViewModeChange}
         />
         <MainContent 
-          parentFolderId={viewMode === 'starred' || viewMode === 'trash' || viewMode === 'shared' ? null : currentFolderId}
+          parentFolderId={viewMode === 'starred' || viewMode === 'trash' || viewMode === 'shared' || viewMode === 'recent' ? null : currentFolderId}
           onFolderClick={handleFolderClick}
           refreshTrigger={refreshTrigger}
           folderStack={folderStack}

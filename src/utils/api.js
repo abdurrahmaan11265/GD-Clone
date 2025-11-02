@@ -1,8 +1,11 @@
 const API_BASE = '/api';
 
-export const fetchFiles = async (parentFolderId = null, starred = false) => {
+export const fetchFiles = async (parentFolderId = null, starred = false, viewMode = 'my-drive') => {
   let url = `${API_BASE}/files`;
   const params = new URLSearchParams();
+  
+  // Add viewMode parameter
+  params.append('viewMode', viewMode);
   
   // If starred is true, don't send parentFolderId
   if (starred) {
@@ -15,7 +18,7 @@ export const fetchFiles = async (parentFolderId = null, starred = false) => {
     url += '?' + params.toString();
   }
   
-  console.log('fetchFiles called with:', { parentFolderId, starred, url });
+  console.log('fetchFiles called with:', { parentFolderId, starred, viewMode, url });
   const response = await fetch(url);
   if (!response.ok) {
     throw new Error('Failed to fetch files');
