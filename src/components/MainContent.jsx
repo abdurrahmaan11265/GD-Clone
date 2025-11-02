@@ -1,25 +1,76 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import FileItem from './FileItem';
+import { fetchFiles, deleteFile, toggleStar, downloadFile } from '../utils/api';
 
-const MainContent = () => {
+const MainContent = ({ parentFolderId, onFolderClick, refreshTrigger, folderStack, currentFolderId, currentFolderName, onNavigateToFolder }) => {
   const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'list'
   const [selectedFiles, setSelectedFiles] = useState([]);
+  const [files, setFiles] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const files = [
-    { id: 1, name: 'Project Proposal.docx', type: 'document', size: '2.4 MB', modified: 'Nov 1, 2025', owner: 'me', starred: false },
-    { id: 2, name: 'Budget 2025', type: 'spreadsheet', size: '1.8 MB', modified: 'Oct 30, 2025', owner: 'me', starred: true },
-    { id: 3, name: 'Presentation.pptx', type: 'presentation', size: '5.2 MB', modified: 'Oct 28, 2025', owner: 'me', starred: false },
-    { id: 4, name: 'Team Photos', type: 'folder', size: '—', modified: 'Oct 25, 2025', owner: 'me', starred: false },
-    { id: 5, name: 'Meeting Notes.pdf', type: 'pdf', size: '890 KB', modified: 'Oct 24, 2025', owner: 'John Doe', starred: false },
-    { id: 6, name: 'Design Assets', type: 'folder', size: '—', modified: 'Oct 20, 2025', owner: 'me', starred: true },
-    { id: 7, name: 'Report.docx', type: 'document', size: '3.1 MB', modified: 'Oct 18, 2025', owner: 'me', starred: false },
-    { id: 8, name: 'Data Analysis.xlsx', type: 'spreadsheet', size: '4.5 MB', modified: 'Oct 15, 2025', owner: 'Jane Smith', starred: false },
-  ];
+  useEffect(() => {
+    loadFiles();
+  }, [parentFolderId, refreshTrigger]);
 
-  const suggestedFiles = [
-    { id: 101, name: 'Q4 Report.docx', type: 'document', modified: '2 hours ago' },
-    { id: 102, name: 'Marketing Plan', type: 'folder', modified: 'Yesterday' },
-  ];
+  const loadFiles = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await fetchFiles(parentFolderId);
+      setFiles(data);
+    } catch (err) {
+      setError(err.message);
+      console.error('Error loading files:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleFileClick = async (file) => {
+    if (file.type === 'folder') {
+      onFolderClick(file);
+    } else {
+      // Open/download file
+      try {
+        await downloadFile(file.id, file.name);
+      } catch (err) {
+        alert('Failed to open file: ' + err.message);
+      }
+    }
+  };
+
+  const handleDelete = async (fileId) => {
+    if (!window.confirm('Are you sure you want to delete this item?')) {
+      return;
+    }
+
+    try {
+      await deleteFile(fileId);
+      loadFiles();
+    } catch (err) {
+      alert('Failed to delete file: ' + err.message);
+    }
+  };
+
+  const handleToggleStar = async (fileId) => {
+    try {
+      await toggleStar(fileId);
+      loadFiles();
+    } catch (err) {
+      alert('Failed to toggle star: ' + err.message);
+    }
+  };
+
+  const suggestedFiles = files
+    .filter(file => file.type !== 'folder')
+    .slice(0, 2)
+    .map(file => ({
+      id: file.id,
+      name: file.name,
+      type: file.type,
+      modified: file.modified
+    }));
 
   const toggleFileSelection = (fileId) => {
     setSelectedFiles(prev =>
@@ -29,39 +80,181 @@ const MainContent = () => {
     );
   };
 
+  if (loading) {
+    return (
+      <main className="flex-1 overflow-auto bg-white">
+        <div className="max-w-7xl mx-auto p-6">
+          <p className="text-gray-500">Loading files...</p>
+        </div>
+      </main>
+    );
+  }
+
+  if (error) {
+    return (
+      <main className="flex-1 overflow-auto bg-white">
+        <div className="max-w-7xl mx-auto p-6">
+          <p className="text-red-500">Error: {error}</p>
+          <button 
+            onClick={loadFiles}
+            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          >
+            Retry
+          </button>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="flex-1 overflow-auto bg-white">
       <div className="max-w-7xl mx-auto p-6">
-        {/* Suggested Section */}
-        <section className="mb-8">
-          <h2 className="text-sm font-medium text-gray-700 mb-3">Suggested</h2>
-          <div className="flex gap-4 overflow-x-auto pb-2">
-            {suggestedFiles.map((file) => (
-              <div
-                key={file.id}
-                className="flex-shrink-0 w-64 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
+        {/* Breadcrumb Navigation */}
+        {(folderStack.length > 0 || currentFolderId !== null) && (
+          <div className="mb-4">
+            <nav 
+              className="flex items-center"
+              style={{
+                height: '2.5rem',
+                lineHeight: '2.5rem',
+                paddingRight: '24px',
+                color: 'rgb(95, 99, 104)'
+              }}
+            >
+              <button
+                onClick={() => onNavigateToFolder(null)}
+                className="hover:bg-gray-100 transition-colors"
+                style={{
+                  font: '400 1.5rem / 2rem "Google Sans", "Google Sans", Roboto, Arial, sans-serif',
+                  letterSpacing: '0',
+                  borderRadius: '0.25rem',
+                  lineHeight: '1.75rem',
+                  margin: '0.125rem 0',
+                  padding: '0.25rem 1rem',
+                  boxSizing: 'border-box',
+                  color: 'rgb(95, 99, 104)',
+                  cursor: 'pointer',
+                  display: 'inline-block',
+                  flex: '0 1 auto',
+                  overflow: 'hidden',
+                  position: 'relative',
+                  textOverflow: 'ellipsis',
+                  verticalAlign: 'top',
+                  whiteSpace: 'nowrap',
+                  maxWidth: '18.75rem'
+                }}
               >
-                <div className="flex items-center gap-3">
-                  <div className="flex-shrink-0">
-                    {file.type === 'folder' ? (
-                      <svg className="w-6 h-6 text-gray-500" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z" />
-                      </svg>
-                    ) : (
-                      <svg className="w-6 h-6 text-blue-600" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z" />
-                      </svg>
-                    )}
+                My Drive
+              </button>
+              {folderStack.map((folder) => (
+                <React.Fragment key={folder.id}>
+                  <span className="mx-1" style={{ color: 'rgb(95, 99, 104)' }}>›</span>
+                  <button
+                    onClick={() => onNavigateToFolder(folder.id, folder.name)}
+                    className="hover:bg-gray-100 transition-colors"
+                    style={{
+                      font: '400 1.5rem / 2rem "Google Sans", "Google Sans", Roboto, Arial, sans-serif',
+                      letterSpacing: '0',
+                      borderRadius: '0.25rem',
+                      lineHeight: '1.75rem',
+                      margin: '0.125rem 0',
+                      padding: '0.25rem 1rem',
+                      boxSizing: 'border-box',
+                      color: 'rgb(95, 99, 104)',
+                      cursor: 'pointer',
+                      display: 'inline-block',
+                      flex: '0 1 auto',
+                      overflow: 'hidden',
+                      position: 'relative',
+                      textOverflow: 'ellipsis',
+                      verticalAlign: 'top',
+                      whiteSpace: 'nowrap',
+                      maxWidth: '18.75rem'
+                    }}
+                  >
+                    {folder.name}
+                  </button>
+                </React.Fragment>
+              ))}
+              {currentFolderName && (
+                <>
+                  <span className="mx-1" style={{ color: 'rgb(95, 99, 104)' }}>›</span>
+                  <div className="flex items-center gap-1">
+                    <span
+                      style={{
+                        font: '400 1.5rem / 2rem "Google Sans", "Google Sans", Roboto, Arial, sans-serif',
+                        letterSpacing: '0',
+                        borderRadius: '0.25rem',
+                        lineHeight: '1.75rem',
+                        margin: '0.125rem 0',
+                        padding: '0.25rem 1rem',
+                        boxSizing: 'border-box',
+                        color: 'rgb(95, 99, 104)',
+                        display: 'inline-block',
+                        flex: '0 1 auto',
+                        overflow: 'hidden',
+                        position: 'relative',
+                        textOverflow: 'ellipsis',
+                        verticalAlign: 'top',
+                        whiteSpace: 'nowrap',
+                        maxWidth: '18.75rem'
+                      }}
+                    >
+                      {currentFolderName}
+                    </span>
+                    <svg 
+                      className="text-gray-600" 
+                      viewBox="0 0 24 24" 
+                      fill="none" 
+                      stroke="currentColor" 
+                      strokeWidth="2"
+                      style={{
+                        width: '1rem',
+                        height: '1rem',
+                        color: 'rgb(95, 99, 104)'
+                      }}
+                    >
+                      <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate">{file.name}</p>
-                    <p className="text-xs text-gray-500">{file.modified}</p>
+                </>
+              )}
+            </nav>
+          </div>
+        )}
+
+        {/* Suggested Section */}
+        {suggestedFiles.length > 0 && (
+          <section className="mb-8">
+            <h2 className="text-sm font-medium text-gray-700 mb-3">Suggested</h2>
+            <div className="flex gap-4 overflow-x-auto pb-2">
+              {suggestedFiles.map((file) => (
+                <div
+                  key={file.id}
+                  className="flex-shrink-0 w-64 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="flex-shrink-0">
+                      {file.type === 'folder' ? (
+                        <svg className="w-6 h-6 text-gray-500" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z" />
+                        </svg>
+                      ) : (
+                        <svg className="w-6 h-6 text-blue-600" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z" />
+                        </svg>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 truncate">{file.name}</p>
+                      <p className="text-xs text-gray-500">{file.modified}</p>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        </section>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* My Drive Section */}
         <section>
@@ -108,29 +301,49 @@ const MainContent = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {files.map((file) => (
-                    <FileItem
-                      key={file.id}
-                      file={file}
-                      viewMode="list"
-                      isSelected={selectedFiles.includes(file.id)}
-                      onToggleSelect={toggleFileSelection}
-                    />
-                  ))}
+                  {files.length === 0 ? (
+                    <tr>
+                      <td colSpan="5" className="px-4 py-8 text-center text-gray-500">
+                        No files yet. Upload a file or create a folder to get started.
+                      </td>
+                    </tr>
+                  ) : (
+                    files.map((file) => (
+                      <FileItem
+                        key={file.id}
+                        file={file}
+                        viewMode="list"
+                        isSelected={selectedFiles.includes(file.id)}
+                        onToggleSelect={toggleFileSelection}
+                        onClick={() => handleFileClick(file)}
+                        onDelete={handleDelete}
+                        onToggleStar={handleToggleStar}
+                      />
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-              {files.map((file) => (
-                <FileItem
-                  key={file.id}
-                  file={file}
-                  viewMode="grid"
-                  isSelected={selectedFiles.includes(file.id)}
-                  onToggleSelect={toggleFileSelection}
-                />
-              ))}
+              {files.length === 0 ? (
+                <div className="col-span-full text-center py-12 text-gray-500">
+                  No files yet. Upload a file or create a folder to get started.
+                </div>
+              ) : (
+                files.map((file) => (
+                  <FileItem
+                    key={file.id}
+                    file={file}
+                    viewMode="grid"
+                    isSelected={selectedFiles.includes(file.id)}
+                    onToggleSelect={toggleFileSelection}
+                    onClick={() => handleFileClick(file)}
+                    onDelete={handleDelete}
+                    onToggleStar={handleToggleStar}
+                  />
+                ))
+              )}
             </div>
           )}
         </section>

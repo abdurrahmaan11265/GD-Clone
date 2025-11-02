@@ -1,16 +1,113 @@
-# React + Vite
+# Google Drive Clone
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A full-stack Google Drive clone application built with React, Express, and SQLite.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- 📁 File upload and storage in `public/uploads` folder
+- 📂 Folder creation and navigation
+- 💾 SQLite database for file metadata storage
+- ⭐ Star/unstar files
+- 🗑️ Delete files and folders (with recursive deletion for folders)
+- 📊 Grid and List view modes
+- 🎨 Modern UI with Tailwind CSS
 
-## React Compiler
+## Prerequisites
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- Node.js (v18 or higher)
+- npm or yarn
 
-## Expanding the ESLint configuration
+## Installation
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+1. Install dependencies:
+```bash
+npm install
+```
+
+## Running the Application
+
+### Development Mode
+
+Run both the backend server and frontend development server:
+
+```bash
+npm run dev:full
+```
+
+This will start:
+- Backend server on `http://localhost:3001`
+- Frontend development server on `http://localhost:5173` (or another port if 5173 is occupied)
+
+### Separate Commands
+
+Alternatively, you can run them separately:
+
+Terminal 1 (Backend):
+```bash
+npm run server
+```
+
+Terminal 2 (Frontend):
+```bash
+npm run dev
+```
+
+## Project Structure
+
+```
+GD-Clone/
+├── server/
+│   ├── server.js      # Express backend server
+│   └── database.js    # JSON file-based database
+├── src/
+│   ├── components/    # React components
+│   ├── pages/         # Page components
+│   └── utils/         # API utility functions
+├── public/
+│   └── uploads/       # Uploaded files storage
+└── database.json      # JSON database (created automatically)
+```
+
+## API Endpoints
+
+- `GET /api/files` - Get all files (optional `?parentFolderId=id` query parameter)
+- `POST /api/files/upload` - Upload a file (multipart/form-data)
+- `POST /api/folders` - Create a new folder
+- `DELETE /api/files/:id` - Delete a file or folder
+- `PUT /api/files/:id/star` - Toggle star status
+
+## Database Schema
+
+The JSON database stores files in an array with the following structure:
+- `id` - Unique identifier (auto-incremented)
+- `name` - File/folder name
+- `type` - File type (folder, document, pdf, etc.)
+- `size` - File size in bytes (0 for folders)
+- `path` - Relative path to the file
+- `parent_folder_id` - Reference to parent folder ID (null for root)
+- `created_at` - Creation timestamp (ISO string)
+- `modified_at` - Last modification timestamp (ISO string)
+- `starred` - Star status (0 or 1)
+- `owner` - File owner (default: 'me')
+
+## Usage
+
+1. **Upload a File**: Click "New" → "File upload" → Select a file
+2. **Create a Folder**: Click "New" → "New folder" → Enter folder name
+3. **Navigate Folders**: Click on a folder to enter it
+4. **Star Files**: Click the menu (three dots) → "Star"
+5. **Delete Files**: Click the menu → "Delete"
+
+## Technologies Used
+
+- **Frontend**: React, Vite, Tailwind CSS, React Router
+- **Backend**: Express.js, Multer (file uploads)
+- **Database**: JSON file-based storage (no native dependencies required)
+- **File Storage**: Local filesystem (`public/uploads`)
+
+## Notes
+
+- Files are stored in the `public/uploads` folder
+- Database file (`database.json`) is created automatically on first run
+- The uploads folder structure mirrors the folder hierarchy in the database
+- No native compilation required - works on all platforms without build tools

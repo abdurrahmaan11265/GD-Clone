@@ -1,9 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { uploadFile, createFolder } from '../utils/api';
 
-const Sidebar = () => {
+const Sidebar = ({ currentFolderId, onFileUpload, onFolderCreate }) => {
   const [activeItem, setActiveItem] = useState('my-drive');
   const [isNewOpen, setIsNewOpen] = useState(false);
+  const [isFolderDialogOpen, setIsFolderDialogOpen] = useState(false);
+  const [folderName, setFolderName] = useState('Untitled folder');
+  const folderInputRef = useRef(null);
   const newMenuRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     const onClickOutside = (e) => {
@@ -12,7 +17,13 @@ const Sidebar = () => {
       }
     };
     const onKeyDown = (e) => {
-      if (e.key === 'Escape') setIsNewOpen(false);
+      if (e.key === 'Escape') {
+        setIsNewOpen(false);
+        if (isFolderDialogOpen) {
+          setIsFolderDialogOpen(false);
+          setFolderName('Untitled folder');
+        }
+      }
     };
     document.addEventListener('mousedown', onClickOutside);
     document.addEventListener('keydown', onKeyDown);
@@ -20,7 +31,33 @@ const Sidebar = () => {
       document.removeEventListener('mousedown', onClickOutside);
       document.removeEventListener('keydown', onKeyDown);
     };
-  }, []);
+  }, [isFolderDialogOpen]);
+
+  useEffect(() => {
+    if (isFolderDialogOpen && folderInputRef.current) {
+      folderInputRef.current.focus();
+      folderInputRef.current.select();
+    }
+  }, [isFolderDialogOpen]);
+
+  const handleCreateFolder = async () => {
+    const name = folderName.trim() || 'Untitled folder';
+    if (name) {
+      try {
+        await createFolder(name, currentFolderId);
+        if (onFolderCreate) onFolderCreate();
+        setIsFolderDialogOpen(false);
+        setFolderName('Untitled folder');
+      } catch (error) {
+        alert('Failed to create folder: ' + error.message);
+      }
+    }
+  };
+
+  const handleCancelFolder = () => {
+    setIsFolderDialogOpen(false);
+    setFolderName('Untitled folder');
+  };
 
   const menuItems = [
     { id: 'my-drive', label: 'My Drive', icon: 'drive' },
@@ -114,7 +151,13 @@ const Sidebar = () => {
                 : 'opacity-0 -translate-y-2 pointer-events-none'}`}
           >
             <div className="py-1">
-              <button className="w-full flex items-center justify-between px-4 py-2.5 text-sm text-gray-800 hover:bg-gray-100">
+              <button
+                onClick={() => {
+                  setIsNewOpen(false);
+                  setIsFolderDialogOpen(true);
+                }}
+                className="w-full flex items-center justify-between px-4 py-2.5 text-sm text-gray-800 hover:bg-gray-100"
+              >
                 <span className="flex items-center gap-3">
                   <svg className="w-5 h-5 text-gray-700" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z" />
@@ -126,7 +169,31 @@ const Sidebar = () => {
 
               <div className="border-t border-gray-200"></div>
 
-              <button className="w-full flex items-center justify-between px-4 py-2.5 text-sm text-gray-800 hover:bg-gray-100">
+              <input
+                type="file"
+                ref={fileInputRef}
+                style={{ display: 'none' }}
+                onChange={async (e) => {
+                  const file = e.target.files[0];
+                  if (file) {
+                    try {
+                      await uploadFile(file, currentFolderId);
+                      if (onFileUpload) onFileUpload();
+                    } catch (error) {
+                      alert('Failed to upload file: ' + error.message);
+                    }
+                  }
+                  e.target.value = '';
+                }}
+              />
+
+              <button
+                onClick={() => {
+                  setIsNewOpen(false);
+                  fileInputRef.current?.click();
+                }}
+                className="w-full flex items-center justify-between px-4 py-2.5 text-sm text-gray-800 hover:bg-gray-100"
+              >
                 <span className="flex items-center gap-3">
                   <svg className="w-5 h-5 text-gray-700" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z" />
@@ -261,6 +328,50 @@ const Sidebar = () => {
           Get more storage
         </button>
       </div>
+
+      {/* New Folder Dialog Modal */}
+      {isFolderDialogOpen && (
+        <div
+          className="fixed inset-0 flex items-center justify-center z-50"
+          style={{ backgroundColor: 'rgba(0, 0, 0, 0.7)' }}
+          onClick={handleCancelFolder}
+        >
+          <div
+            className="bg-white rounded-lg shadow-2xl p-6 w-96 max-w-[90vw]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-lg font-medium text-gray-900 mb-4">New folder</h2>
+            <input
+              ref={folderInputRef}
+              type="text"
+              value={folderName}
+              onChange={(e) => setFolderName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handleCreateFolder();
+                } else if (e.key === 'Escape') {
+                  handleCancelFolder();
+                }
+              }}
+              className="w-full px-3 py-2.5 border-2 border-blue-500 rounded focus:outline-none focus:ring-0 text-gray-900 mb-6 text-sm"
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={handleCancelFolder}
+                className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateFolder}
+                className="px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 rounded transition-colors font-medium"
+              >
+                Create
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </aside>
   );
 };

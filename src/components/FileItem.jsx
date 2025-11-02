@@ -1,6 +1,24 @@
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
-const FileItem = ({ file, viewMode, isSelected, onToggleSelect }) => {
+const FileItem = ({ file, viewMode, isSelected, onToggleSelect, onClick, onDelete, onToggleStar }) => {
+  const [showMenu, setShowMenu] = useState(false);
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        setShowMenu(false);
+      }
+    };
+
+    if (showMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showMenu]);
   const getFileIcon = (type) => {
     switch (type) {
       case 'folder':
@@ -42,9 +60,51 @@ const FileItem = ({ file, viewMode, isSelected, onToggleSelect }) => {
     }
   };
 
+  const handleClick = (e) => {
+    // For files, handle single click
+    if (file.type !== 'folder') {
+      if (onClick) {
+        onClick(file);
+      }
+    }
+    // For folders, we only handle double-click (see onDoubleClick below)
+  };
+
+  const handleDoubleClick = (e) => {
+    // For folders, only open on double-click
+    if (file.type === 'folder' && onClick) {
+      onClick(file);
+    }
+  };
+
+  const handleMenuClick = (e) => {
+    e.stopPropagation();
+    setShowMenu(!showMenu);
+  };
+
+  const handleStarClick = (e) => {
+    e.stopPropagation();
+    if (onToggleStar) {
+      onToggleStar(file.id);
+    }
+    setShowMenu(false);
+  };
+
+  const handleDeleteClick = (e) => {
+    e.stopPropagation();
+    if (onDelete) {
+      onDelete(file.id);
+    }
+    setShowMenu(false);
+  };
+
   if (viewMode === 'list') {
     return (
-      <tr className="border-b border-gray-100 hover:bg-gray-50 cursor-pointer">
+      <tr 
+        className="border-b border-gray-100 hover:bg-gray-50 cursor-pointer"
+        onClick={handleClick}
+        onDoubleClick={handleDoubleClick}
+      >
         <td className="px-4 py-3">
           <div className="flex items-center gap-3">
             <div className="w-6 h-6 flex-shrink-0">{getFileIcon(file.type)}</div>
@@ -59,26 +119,77 @@ const FileItem = ({ file, viewMode, isSelected, onToggleSelect }) => {
         <td className="px-4 py-3 text-sm text-gray-600">{file.owner}</td>
         <td className="px-4 py-3 text-sm text-gray-600">{file.modified}</td>
         <td className="px-4 py-3 text-sm text-gray-600">{file.size}</td>
-        <td className="px-4 py-3">
-          <button className="p-1 hover:bg-gray-200 rounded">
-            <svg className="w-5 h-5 text-gray-600" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
-            </svg>
-          </button>
+        <td className="px-4 py-3 relative">
+          <div ref={menuRef}>
+            <button 
+              onClick={handleMenuClick}
+              className="p-1 hover:bg-gray-200 rounded"
+            >
+              <svg className="w-5 h-5 text-gray-600" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
+              </svg>
+            </button>
+            {showMenu && (
+              <div className="absolute right-0 mt-1 w-48 bg-white rounded-md shadow-lg z-10 border border-gray-200">
+              <button
+                onClick={handleStarClick}
+                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+              >
+                {file.starred ? 'Unstar' : 'Star'}
+              </button>
+              <button
+                onClick={handleDeleteClick}
+                className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100"
+              >
+                Delete
+              </button>
+            </div>
+            )}
+          </div>
         </td>
       </tr>
     );
   }
 
   return (
-    <div className="group relative border border-gray-200 rounded-lg p-4 hover:bg-gray-50 hover:shadow-md transition-all cursor-pointer">
+    <div 
+      className="group relative border border-gray-200 rounded-lg p-4 hover:bg-gray-50 hover:shadow-md transition-all cursor-pointer"
+      onClick={handleClick}
+      onDoubleClick={handleDoubleClick}
+    >
       {file.starred && (
-        <div className="absolute top-2 right-2">
+        <div className="absolute top-2 right-2 z-10">
           <svg className="w-5 h-5 text-yellow-500" viewBox="0 0 24 24" fill="currentColor">
             <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
           </svg>
         </div>
       )}
+      <div ref={menuRef} className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+        <button
+          onClick={handleMenuClick}
+          className="p-1 bg-white rounded shadow hover:bg-gray-100"
+        >
+          <svg className="w-4 h-4 text-gray-600" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
+          </svg>
+        </button>
+        {showMenu && (
+          <div className="absolute right-0 mt-1 w-48 bg-white rounded-md shadow-lg z-20 border border-gray-200">
+            <button
+              onClick={handleStarClick}
+              className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+            >
+              {file.starred ? 'Unstar' : 'Star'}
+            </button>
+            <button
+              onClick={handleDeleteClick}
+              className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100"
+            >
+              Delete
+            </button>
+          </div>
+        )}
+      </div>
       <div className="w-full aspect-square mb-3 flex items-center justify-center">
         <div className="w-16 h-16">{getFileIcon(file.type)}</div>
       </div>
