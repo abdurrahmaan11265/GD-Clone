@@ -3,11 +3,20 @@ import FileItem from './FileItem';
 import { fetchFiles, deleteFile, toggleStar, downloadFile } from '../utils/api';
 
 const MainContent = ({ parentFolderId, onFolderClick, refreshTrigger, folderStack, currentFolderId, currentFolderName, onNavigateToFolder }) => {
-  const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'list'
+  // Load view mode from localStorage, default to 'grid'
+  const [viewMode, setViewMode] = useState(() => {
+    const savedViewMode = localStorage.getItem('drive-view-mode');
+    return savedViewMode || 'grid';
+  });
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  // Save view mode to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem('drive-view-mode', viewMode);
+  }, [viewMode]);
 
   useEffect(() => {
     loadFiles();

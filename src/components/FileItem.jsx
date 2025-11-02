@@ -101,7 +101,7 @@ const FileItem = ({ file, viewMode, isSelected, onToggleSelect, onClick, onDelet
   if (viewMode === 'list') {
     return (
       <tr 
-        className="border-b border-gray-100 hover:bg-gray-50 cursor-pointer"
+        className="border-b border-gray-100 hover:bg-gray-50 cursor-pointer select-none"
         onClick={handleClick}
         onDoubleClick={handleDoubleClick}
       >
@@ -153,7 +153,7 @@ const FileItem = ({ file, viewMode, isSelected, onToggleSelect, onClick, onDelet
 
   return (
     <div 
-      className="group relative border border-gray-200 rounded-lg p-4 hover:bg-gray-50 hover:shadow-md transition-all cursor-pointer"
+      className="group relative border border-gray-200 rounded-lg p-4 hover:bg-gray-50 hover:shadow-md transition-all cursor-pointer select-none"
       onClick={handleClick}
       onDoubleClick={handleDoubleClick}
     >
